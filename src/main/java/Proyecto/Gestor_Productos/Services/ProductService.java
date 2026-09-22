@@ -1,6 +1,6 @@
 package Proyecto.Gestor_Productos.Services;
 
-
+import Proyecto.Gestor_Productos.Exception.ResourceNotFoundException;
 import Proyecto.Gestor_Productos.Models.Brand;
 import Proyecto.Gestor_Productos.Models.Category;
 import Proyecto.Gestor_Productos.Models.Product;
@@ -8,75 +8,112 @@ import Proyecto.Gestor_Productos.Repositories.BrandRepository;
 import Proyecto.Gestor_Productos.Repositories.CategoryRepository;
 import Proyecto.Gestor_Productos.Repositories.ProductsRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-
+/**
+ * Lógica de negocio para la gestión de productos ({Product}).
+ * Resuelve las relaciones con {Category} y {Brand} a partir
+ * de los ids planos que llegan en el DTO de entrada (resolveCategory}
+ * y {resolveBrand}), convirtiéndolos en las entidades reales antes
+ * de persistir.
+ */
 
 @Service
 public class ProductService {
-   private  final ProductsRepository productsRepository;
-   private final CategoryRepository categoryRepository;
-   private final BrandRepository brandRepository;
+    private final ProductsRepository productsRepository;
+    private final CategoryRepository categoryRepository;
+    private final BrandRepository brandRepository;
 
     public ProductService(BrandRepository brandRepository, ProductsRepository productsRepository, CategoryRepository categoryRepository) {
         this.brandRepository = brandRepository;
         this.productsRepository = productsRepository;
         this.categoryRepository = categoryRepository;
     }
-
-    public List<Product> listProduct(){
+    /** Lista todos los productos, con su categoría y marca ya cargadas (ver @EntityGraph en el repositorio). */
+    @Transactional(readOnly = true)
+    public List<Product> listProduct() {
         return productsRepository.findAll();
     }
-
-    public List<Product> listByCategory(Long categoryid){
-        return productsRepository.findByCategoryId(categoryid);
+    /** Lista los productos que pertenecen a una categoría específica. */
+    @Transactional(readOnly = true)
+    public List<Product> listByCategory(Long categoryId) {
+        return productsRepository.findByCategoryId(categoryId);
     }
 
-    public Product addProduct(Product product){
-        resolveCategory(product);
-        resolveBrand(product);
+    /**
+     * Crea un producto nuevo, resolviendo su categoría y marca a partir de
+     * los ids que trae el objeto recibido (mapeado desde el DTO de entrada).
+     * @throws ResourceNotFoundException si falta la categoría/marca o no existen.
+     */
+    @Transactional
+    public Product addProduct(Product product) {
+        Long categoryId = product.getCategory() != null ? product.getCategory().getId() : null;
+        Long brandId = product.getBrand() != null ? product.getBrand().getId() : null;
+
+        product.setCategory(resolveCategory(categoryId));
+        product.setBrand(resolveBrand(brandId));
         return productsRepository.save(product);
     }
 
-    private  void resolveCategory(Product product){
-        if (product.getCategory() != null && product.getCategory().getId() != null){
-            Category category = categoryRepository.findById(product.getCategory().getId())
-                    .orElse(null);
-            product.setCategory(category);
+    /**
+     * Busca la categoría real en base de datos a partir de su id.
+     * @throws ResourceNotFoundException si el id es nulo, o si no existe esa categoría.
+     */
+    private Category resolveCategory(Long categoryId) {
+        if (categoryId == null) {
+            throw new ResourceNotFoundException("Category is required");
         }
+
+        return categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
     }
 
-    private void resolveBrand(Product product){
-        if (product.getBrand() != null && product.getBrand().getId() != null){
-            Brand brand = brandRepository.findById(product.getBrand().getId())
-                    .orElse(null);
-            product.setBrand(brand);
+    /**
+     * Busca la marca real en base de datos a partir de su id.
+     * @throws ResourceNotFoundException si el id es nulo, o si no existe esa marca.
+     */
+    private Brand resolveBrand(Long brandId) {
+        if (brandId == null) {
+            throw new ResourceNotFoundException("Brand is required");
         }
+        return brandRepository.findById(brandId)
+                .orElseThrow(() -> new ResourceNotFoundException("Brand not found"));
+
     }
 
-    public Product updateProduct(Long id, Product newProduct){
+    /**
+     * Actualiza los datos de un producto existente, incluyendo su categoría y marca.
+     * @throws ResourceNotFoundException si el producto, la categoría o la marca no existen.
+     */
+    @Transactional
+    public Product updateProduct(Long id, Product newProduct) {
         Product searchproduct = productsRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not exits"));
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
         searchproduct.setName(newProduct.getName());
         searchproduct.setDescription(newProduct.getDescription());
         searchproduct.setPrice(newProduct.getPrice());
         searchproduct.setStock(newProduct.getStock());
 
-        resolveCategory(newProduct);
-        resolveBrand(newProduct);
-        searchproduct.setCategory(newProduct.getCategory());
-        searchproduct.setBrand(newProduct.getBrand());
+        Long categoryId = newProduct.getCategory() != null ? newProduct.getCategory().getId() : null;
+        Long brandId = newProduct.getBrand() != null ? newProduct.getBrand().getId() : null;
+
+        searchproduct.setCategory(resolveCategory(categoryId));
+        searchproduct.setBrand(resolveBrand(brandId));
 
         return productsRepository.save(searchproduct);
     }
 
-    public void deleteProduct(Long id){
-        boolean exits = productsRepository.existsById(id);
-
-        if(!exits){
-            throw new RuntimeException("Not exits a product to delete");
+    /**
+     * Elimina un producto por id.
+     * @throws ResourceNotFoundException si no existe el producto.
+     */
+    @Transactional
+    public void deleteProduct(Long id) {
+        if (!productsRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Product not found");
         }
-     productsRepository.deleteById(id);
-
+        productsRepository.deleteById(id);
     }
 }

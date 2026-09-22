@@ -1,28 +1,17 @@
 package Proyecto.Gestor_Productos.Dtos;
 
-import Proyecto.Gestor_Productos.Models.Product;
+import java.math.BigDecimal;
 
 public class ProductsDto {
     private Long id;
     private String name;
     private String description;
-    private double price;
+    private BigDecimal price;
     private int stock;
     private String category;
     private String brand;
 
-
-    public ProductsDto(Product product) {
-        this.id = product.getId();
-        this.name = product.getName();
-        this.description = product.getDescription();
-        this.price = product.getPrice();
-        this.stock = product.getStock();
-        this.category = product.getCategory() != null
-                        ? product.getCategory().getName() : null;
-        this.brand = product.getBrand() != null
-                    ? product.getBrand().getName() : null;
-
+    public ProductsDto() {
     }
 
     public String getBrand() {
@@ -65,11 +54,11 @@ public class ProductsDto {
         this.name = name;
     }
 
-    public double getPrice() {
+    public BigDecimal getPrice() {
         return price;
     }
 
-    public void setPrice(double price) {
+    public void setPrice(BigDecimal price) {
         this.price = price;
     }
 
