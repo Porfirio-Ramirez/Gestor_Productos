@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 /**
  * Lógica de negocio de autenticación y gestión de cuenta: registro, login,
@@ -155,7 +156,26 @@ public class AuthService {
         String token = jwtService.generateToken(appUser.getEmail(), appUser.getRole().name());
         return new AuthResponse(token);
     }
+   // metodo para listar todos los usuarios
+    @Transactional(readOnly = true)
+    public List<AppUser> listUsers(){
+        return userRepository.findAll();
+    }
+   // metodo para obtener un usuario por email
+    @Transactional(readOnly = true)
+    public AppUser getUserByEmail(String email){
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+   // metodo que se encarga de habilitar y deshabilitar un usuario
+    @Transactional
+    public void updateUserStatus(Long id, boolean enabled) {
+        AppUser appUser = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        appUser.setEnabled(enabled);
+        userRepository.save(appUser);
+    }
     /**
      * Elimina una cuenta de usuario. Gracias a la cascada configurada en
      * {AppUser} sobre sus relaciones con los tokens, sus tokens de
@@ -289,6 +309,15 @@ public class AuthService {
                 "Confirm your email address",
                 "Thank you for registering. Use this link to verify your account:\n\n" + verifyLink
         );
+    }
+
+    @Transactional
+    public void updateStatusRole(Long id, Role role){
+        AppUser appUser = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+          appUser.setRole(role);
+          userRepository.save(appUser);
     }
 
 }

@@ -1,6 +1,6 @@
 # Gestor de Productos
 
-API REST desarrollada con **Spring Boot** para la gestión de productos de una tienda, con autenticación JWT completa, control de acceso por roles, recuperación de contraseña, verificación de email y protección contra fuerza bruta.
+API REST desarrollada con **Spring Boot** para la gestión de productos de una tienda, con autenticación JWT completa, control de acceso por roles, administración de usuarios, recuperación de contraseña, verificación de email y protección contra fuerza bruta.
 
 ## Tabla de contenidos
 
@@ -12,6 +12,7 @@ API REST desarrollada con **Spring Boot** para la gestión de productos de una t
 - [Documentación de la API](#documentación-de-la-api)
 - [Endpoints principales](#endpoints-principales)
 - [Seguridad](#seguridad)
+- [Frontend](#frontend)
 - [Estructura del proyecto](#estructura-del-proyecto)
 
 ## Stack tecnológico
@@ -30,6 +31,7 @@ API REST desarrollada con **Spring Boot** para la gestión de productos de una t
 - CRUD completo de **Productos**, **Categorías** y **Marcas**
 - Registro y login de usuarios con **JWT**
 - Roles de usuario (`USER` / `ADMIN`) con autorización a nivel de endpoint
+- **Administración de usuarios** (solo ADMIN): listar, buscar por email, habilitar o deshabilitar cuentas, cambiar roles y eliminar cuentas
 - **Verificación de email obligatoria**: la cuenta queda deshabilitada hasta confirmar el correo
 - **Recuperación de contraseña** vía token de un solo uso enviado por correo
 - **Bloqueo de cuenta** tras 3 intentos fallidos de login, con notificación automática por correo
@@ -56,7 +58,7 @@ El proyecto **no lleva ninguna credencial en el código**. Toda la configuració
 2. Variables de entorno / propiedades necesarias:
 
    | Variable              | Descripción                                              | Obligatoria |
-   |------------------------|-----------------------------------------------------------|:-----------:|
+      |------------------------|-----------------------------------------------------------|:-----------:|
    | `DB_URL`              | URL de conexión a MySQL                                   | No (tiene valor por defecto) |
    | `DB_USERNAME`         | Usuario de la base de datos                                | No (tiene valor por defecto) |
    | `DB_PASSWORD`         | Contraseña de la base de datos                             | **Sí** |
@@ -99,16 +101,22 @@ Desde ahí se pueden probar todos los endpoints, incluyendo los protegidos: tras
 
 ## Endpoints principales
 
-### Autenticación (`/api/auth`)
+### Autenticación y usuarios (`/api/auth`)
 
-| Método | Endpoint                  | Descripción                                  | Acceso |
-|--------|----------------------------|-----------------------------------------------|--------|
-| POST   | `/register`                | Registra un usuario nuevo                     | Público |
-| POST   | `/login`                   | Autentica y devuelve un JWT                   | Público |
-| POST   | `/verify-email`            | Confirma el email con el token recibido       | Público |
-| POST   | `/forgot-password`         | Inicia el flujo de recuperación de contraseña | Público |
-| POST   | `/reset-password`          | Completa el reseteo de contraseña             | Público |
-| DELETE | `/users/{id}`              | Elimina una cuenta de usuario                 | ADMIN |
+| Método | Endpoint                  | Descripción                                    | Acceso |
+|--------|----------------------------|-------------------------------------------------|--------|
+| POST   | `/register`                | Registra un usuario nuevo                       | Público |
+| POST   | `/login`                   | Autentica y devuelve un JWT                     | Público |
+| POST   | `/verify-email`            | Confirma el email con el token recibido         | Público |
+| POST   | `/forgot-password`         | Inicia el flujo de recuperación de contraseña   | Público |
+| POST   | `/reset-password`          | Completa el reseteo de contraseña               | Público |
+| GET    | `/users`                   | Lista todos los usuarios                        | ADMIN |
+| GET    | `/users/search?email=`     | Busca un usuario por email                      | ADMIN |
+| PUT    | `/users/{id}/enabled`      | Habilita o deshabilita una cuenta               | ADMIN |
+| PUT    | `/users/{id}/role`         | Cambia el rol de un usuario (`USER` / `ADMIN`)  | ADMIN |
+| DELETE | `/users/{id}`              | Elimina una cuenta de usuario                   | ADMIN |
+
+Las respuestas de usuarios usan un DTO que **nunca incluye la contraseña**: solo `id`, `email`, `role` y `enabled`.
 
 ### Productos (`/api/products`)
 
@@ -120,20 +128,30 @@ Desde ahí se pueden probar todos los endpoints, incluyendo los protegidos: tras
 | PUT    | `/{id}`                          | Actualiza un producto             | ADMIN |
 | DELETE | `/{id}`                          | Elimina un producto               | ADMIN |
 
+Cada producto devuelto incluye el nombre de su categoría y marca (`category`, `brand`) y también sus ids (`categoryId`, `brandId`), útiles para precargar formularios de edición.
+
 ### Categorías (`/api/category`) y Marcas (`/api/brand`)
 
-Ambos siguen el mismo patrón: lecturas (`GET`) públicas, y creación/actualización/borrado restringidos a `ADMIN`.
+Ambos siguen el mismo patrón: lecturas (`GET`) públicas, y creación/actualización/borrado restringidos a `ADMIN`. Eliminar una categoría o marca que todavía tiene productos asociados responde `409 Conflict`.
 
 ## Seguridad
 
 - **Autenticación stateless** con JWT (HS256), sin sesiones en el servidor.
 - **Contraseñas** cifradas con BCrypt.
-- **Autorización por rol** (`@PreAuthorize`) en operaciones de escritura.
+- **Autorización por rol** (`@PreAuthorize` y reglas en `SecurityConfig`) en operaciones de escritura y de administración de usuarios.
 - **Bloqueo de cuenta**: 3 intentos fallidos de login bloquean la cuenta por 15 minutos, con correo de alerta automático.
 - **Tokens de un solo uso** (recuperación de contraseña y verificación de email), guardados **hasheados** en base de datos — el valor real solo viaja por correo y nunca se persiste en texto plano.
 - **Protección contra enumeración de usuarios**: `forgot-password` responde igual exista o no el email.
 - **CORS** configurado para permitir el consumo desde un frontend en desarrollo local.
 - Manejo de errores consistente vía `GlobalExceptionHandler`, con códigos HTTP apropiados (400, 401, 403, 404, 409, 423, 500).
+
+## Frontend
+
+Este backend tiene un cliente web hecho con **React, Vite y Tailwind CSS**, que consume esta API: login, registro, verificación de email, recuperación de contraseña, catálogo de productos con filtro por categoría y un panel de administración (productos, categorías, marcas y usuarios) visible solo para `ADMIN`.
+
+Repositorio del frontend: [gestor-productos-frontend](https://github.com/Porfirio-Ramirez/gestor-productos-frontend)
+
+Para usarlo en local, el backend debe estar corriendo en `http://localhost:8080`; el CORS ya permite los puertos `5173` (Vite) y `3000`.
 
 ## Estructura del proyecto
 

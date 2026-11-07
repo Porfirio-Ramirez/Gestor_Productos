@@ -1,15 +1,18 @@
 package Proyecto.Gestor_Productos.Controllers;
 
 import Proyecto.Gestor_Productos.Dtos.*;
+import Proyecto.Gestor_Productos.Mapper.UserMapper;
 import Proyecto.Gestor_Productos.Services.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.models.PathItem;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import Proyecto.Gestor_Productos.Dtos.UpdateUserRoleRequest;
+
+import java.util.List;
 
 /**
  * Endpoints de autenticación y gestión de cuenta: registro, login,
@@ -25,9 +28,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/auth")
 public class AuthController {
     private final AuthService authService;
+    private final UserMapper userMapper;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, UserMapper userMapper) {
         this.authService = authService;
+        this.userMapper = userMapper;
     }
 
     /** Registra un usuario nuevo. No devuelve token: la cuenta queda deshabilitada hasta que se verifique el email. */
@@ -43,6 +48,32 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest login) {
         return ResponseEntity.ok(authService.login(login));
+    }
+
+    @Operation(summary = "List all users")
+    @GetMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<UserDto> listUsers() {
+        return authService.listUsers()
+                .stream()
+                .map(userMapper::toDto)
+                .toList();
+    }
+
+    @Operation(summary = "Get a user by email")
+    @GetMapping("/users/search")
+    @PreAuthorize("hasRole('ADMIN')")
+    public UserDto getUserByEmail(@RequestParam String email) {
+        return userMapper.toDto(authService.getUserByEmail(email));
+    }
+
+    @Operation(summary = "Enable or disable a user account")
+    @PutMapping("/users/{id}/enabled")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> updateUserStatus(@PathVariable Long id,
+                                                 @Valid @RequestBody UpdateUserStatusRequest request) {
+        authService.updateUserStatus(id, request.getEnabled());
+        return ResponseEntity.ok().build();
     }
 
     /** Elimina la cuenta de un usuario. Solo ADMIN; sus tokens asociados se eliminan en cascada. */
@@ -75,6 +106,14 @@ public class AuthController {
     public ResponseEntity<String> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
         authService.verifyEmail(request);
         return ResponseEntity.ok("Email verified successfully");
+    }
+
+    @Operation(summary = "Change a user's role")
+    @PutMapping("/users/{id}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> updateUserRole(@PathVariable Long id, @Valid @RequestBody UpdateUserRoleRequest request){
+        authService.updateStatusRole(id, request.getRole());
+        return ResponseEntity.ok().build();
     }
 
 

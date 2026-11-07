@@ -50,6 +50,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         // public routes
+                        .requestMatchers(HttpMethod.GET, "/api/auth/users/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/auth/users/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/auth/users/**").hasRole("ADMIN")
                         .requestMatchers("/api/auth/**").permitAll()
 
